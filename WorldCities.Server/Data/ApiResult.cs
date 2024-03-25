@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using System.Drawing.Printing;
+using System.Linq.Dynamic.Core;
+using System.Reflection;
 
 namespace WorldCities.Server.Data
 {
@@ -8,13 +9,15 @@ namespace WorldCities.Server.Data
         /// <summary>
         /// Private constructor called by the CreateAsync method.
         /// </summary>
-        private ApiResult( List<T> data, int count, int pageIndex, int pageSize)
+        private ApiResult( List<T> data, int count, int pageIndex, int pageSize, string? sortColumn, string? sortOrder)
         {
             Data = data;
             PageIndex = pageIndex;
             PageSize = pageSize;
             TotalCount = count;
             TotalPages = (int)Math.Ceiling(count / (double)pageSize);
+            SortColumn = sortColumn;
+            SortOrder = sortOrder;
         }
 
         #region Methods
@@ -31,16 +34,44 @@ namespace WorldCities.Server.Data
         /// A object containing the paged result
         /// and all the relevant paging navigation info.
         /// </returns>
-        public static async Task<ApiResult<T>> CreateAsync(IQueryable<T> source, int pageIndex, int pageSize)
+        public static async Task<ApiResult<T>> CreateAsync(IQueryable<T> source, int pageIndex, int pageSize, string? sortColumn = null, string? sortOrder = null)
         {
             var count = await source.CountAsync();
+
+            if (!string.IsNullOrEmpty(sortColumn) && IsValidProperty(sortColumn))
+            {
+                sortOrder = !string.IsNullOrEmpty(sortOrder) && sortOrder.ToUpper() == "ASC" ? "ASC" : "DESC";
+
+                source = source.OrderBy(string.Format("{0} {1}", sortColumn, sortOrder));
+            }
+
             source = source
                 .Skip(pageIndex * pageSize)
                 .Take(pageSize);
 
             var data = await source.ToListAsync();
 
-            return new ApiResult<T>(data, count, pageIndex, pageSize);
+            return new ApiResult<T>(data, count, pageIndex, pageSize, sortColumn, sortOrder);
+        }
+
+        /// <summary>
+        /// Checks if the given property name exists
+        /// to protect against SQL injection attacks 
+        /// </summary>
+        /// <param name="propertyName"></param>
+        /// <param name="throwExceptionIfNotFound"></param>
+        /// <returns></returns>
+        /// <exception cref="NotSupportedException"></exception>
+        public static bool IsValidProperty(string propertyName, bool throwExceptionIfNotFound = true)
+        {
+            var prop = typeof(T).GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+
+            if (prop == null && throwExceptionIfNotFound)
+            {
+                throw new NotSupportedException(string.Format($"ERROR: Property '{propertyName}' does not exist."));
+            }
+
+            return prop != null;
         }
         #endregion
 
@@ -70,6 +101,16 @@ namespace WorldCities.Server.Data
         /// Total pages count
         /// </summary>
         public int TotalPages { get; private set; }
+
+        /// <summary>
+        /// Sorting Column name (or null if none set)
+        /// </summary>
+        public string? SortColumn { get; private set; }
+
+        /// <summary>
+        /// Sorting Order ("ASC", "DESC" or null if none set)
+        /// </summary>
+        public string? SortOrder { get; private set; }
 
         /// <summary>
         /// TRUE if the current page has a previous page,
