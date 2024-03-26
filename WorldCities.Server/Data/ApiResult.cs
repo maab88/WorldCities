@@ -9,7 +9,14 @@ namespace WorldCities.Server.Data
         /// <summary>
         /// Private constructor called by the CreateAsync method.
         /// </summary>
-        private ApiResult( List<T> data, int count, int pageIndex, int pageSize, string? sortColumn, string? sortOrder)
+        private ApiResult( List<T> data, 
+                           int count, 
+                           int pageIndex, 
+                           int pageSize, 
+                           string? sortColumn, 
+                           string? sortOrder, 
+                           string? filterColumn, 
+                           string? filterQuery)
         {
             Data = data;
             PageIndex = pageIndex;
@@ -18,6 +25,8 @@ namespace WorldCities.Server.Data
             TotalPages = (int)Math.Ceiling(count / (double)pageSize);
             SortColumn = sortColumn;
             SortOrder = sortOrder;
+            FilterColumn = filterColumn;
+            FilterQuery = filterQuery;
         }
 
         #region Methods
@@ -30,12 +39,27 @@ namespace WorldCities.Server.Data
         /// (0 = first page)</param>
         /// <param name="pageSize">The actual size of each
         /// page</param>
+        /// <param name="filterColumn">The filtering column
+        /// name</param>
+        /// <param name="filterQuery">The filtering query (value to
+        /// lookup)</param>
         /// <returns>
         /// A object containing the paged result
         /// and all the relevant paging navigation info.
         /// </returns>
-        public static async Task<ApiResult<T>> CreateAsync(IQueryable<T> source, int pageIndex, int pageSize, string? sortColumn = null, string? sortOrder = null)
+        public static async Task<ApiResult<T>> CreateAsync(IQueryable<T> source, 
+                                                           int pageIndex, 
+                                                           int pageSize, 
+                                                           string? sortColumn = null, 
+                                                           string? sortOrder = null, 
+                                                           string? filterColumn = null,
+                                                           string? filterQuery = null)
         {
+            if (!string.IsNullOrEmpty(filterColumn) && !string.IsNullOrEmpty(filterQuery) && IsValidProperty(filterColumn))
+            {
+                source = source.Where(string.Format("{0}.StartsWith(@0)", filterColumn), filterQuery);
+            }
+
             var count = await source.CountAsync();
 
             if (!string.IsNullOrEmpty(sortColumn) && IsValidProperty(sortColumn))
@@ -51,7 +75,14 @@ namespace WorldCities.Server.Data
 
             var data = await source.ToListAsync();
 
-            return new ApiResult<T>(data, count, pageIndex, pageSize, sortColumn, sortOrder);
+            return new ApiResult<T>(data, 
+                                    count, 
+                                    pageIndex, 
+                                    pageSize, 
+                                    sortColumn, 
+                                    sortOrder, 
+                                    filterColumn, 
+                                    filterQuery);
         }
 
         /// <summary>
@@ -111,6 +142,16 @@ namespace WorldCities.Server.Data
         /// Sorting Order ("ASC", "DESC" or null if none set)
         /// </summary>
         public string? SortOrder { get; private set; }
+
+        /// <summary>
+        /// Filter Column name (or null if none set)
+        /// </summary>
+        public string? FilterColumn { get; set; }
+        /// <summary>
+        /// Filter Query string
+        /// (to be used within the given FilterColumn)
+        /// </summary>
+        public string? FilterQuery { get; set; }
 
         /// <summary>
         /// TRUE if the current page has a previous page,
