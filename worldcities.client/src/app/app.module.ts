@@ -13,13 +13,15 @@ import { HomeComponent } from './home/home.component';
 import { NavMenuComponent } from './nav-menu/nav-menu.component';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { CitiesComponent } from './cities/cities.component';
+import { CountriesComponent } from './countries/countries.component';
 
 @NgModule({
   declarations: [
     AppComponent,
     HomeComponent,
     NavMenuComponent,
-    CitiesComponent
+    CitiesComponent,
+    CountriesComponent
   ],
   imports: [
     BrowserModule,
